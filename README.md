@@ -1,5 +1,4 @@
-ArduWellBeingBot
-================
+# ArduWellBeingBot
 
 More details on the dedicated blog: http://arduwellbeingbot.blogspot.fr
 
@@ -23,3 +22,23 @@ You have to add these 4 definition (digitalPinToPCICR, digitalPinToPCICRbit, dig
     // __AVR_ATmega32U4__ has an unusual mapping of pins to channels
     extern const uint8_t PROGMEM analog_pin_to_channel_PGM[];
     #define analogPinToChannel(P) ( pgm_read_byte( analog_pin_to_channel_PGM + (P) ) )
+
+
+##Change log
+
+**v2.0**
+* Bluetooth LE feature
+* Robot can be controled by a mobile device
+* Upload µSD content
+* Code optimization
+* Based on Arduino IDE v1.5.6-r2
+
+
+**v1.0**
+* Autonomous movement
+* Collect data from light, sound, CO2, thermo, hygro sensor
+* GPS sensor management
+* Data recorded into µSD card
+* Based on Arduino IDE v1.5.4 or v1.5.5
+
+    
