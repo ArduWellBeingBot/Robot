@@ -7,18 +7,41 @@
 // Decoding gps frame
 #include "Adafruit_GPS.h"
 // Communicate witrh gps
-#include "SoftwareSerial.h"
+#include "SoftwareSerialRobot.h"
 // Decoding CO2 sensor
 #include "CO2Sensor.h"
 // Decoding Sound sensor
 #include "SoundSensor.h"
+// To proceed env rating
+#include "EnvRating.h"
+// To manage time
+#include "Time.h"
+//#define DEBUG_MODE 1
 /*
  Circuit:
  * Arduino Robot : motor board
  * dht thermo + hygro on pin TK4 http://snootlab.com/adafruit/252-capteur-de-temperature-et-humidite-am2302.html
  * CO2 sensor on pin TK2 http://www.dfrobot.com/index.php?route=product/product&product_id=1023#.UwnntPl5N8E
- * Sound sensor on pin TK1 https://www.adafruit.com/products/1063
+ * Sound sensor on pin TK1 https://www.adafruit.com/products/1063 (http://snootlab.com/lang-en/adafruit/388-electret-microphone-amplifier-max4466-with-adjustable-gain.html)
+ * gps serial RX = MOSI = P4 TX = TK3 (rx gps --> tx motor) http://snootlab.com/lang-en/adafruit/382-adafruit-ultimate-gps-breakout-en.html
+ * ble link serial RX = MISO = P1 TX = SCK = P3 (rx ble --> tx motor) http://www.dfrobot.com/index.php?route=product/product&product_id=1073#.Uxpwufl5N8E
+black connector usage : 
+-----     -----
+|P5 P3 P1 |
+|P6 P4 P2 |
+--------------
  
+P1 = MISO
+P2 = VTG
+P3 = SCK
+P4 = MOSI
+P5 = RST
+P6 = GND
+            up side
+------------     -------------
+|  RST      SCK         MISO |
+|  GND      MOSI         VTG |
+------------------------------
 */
 
 //----------------------------------------------------------
@@ -37,38 +60,18 @@ CO2Sensor gasSensor(TK2);
 // Pin for sound sensor
 #define SOUND_PIN TK1
 
+// Storing all information
+awbbSensorData awbbSensorDataBuf;
+
 // Software serial for gps
 SoftwareSerial gpsSerial(MOSI,TK3);
-Adafruit_GPS GPS(&gpsSerial);
+// Give to gps record the point of awbb record to store all information in only one place.
+Adafruit_GPS GPS(&gpsSerial,&awbbSensorDataBuf);
 
 // Software serial for bluetooth
-//SoftwareSerial btSerial(MISO,TK4);
+SoftwareSerial btSerial(MISO,SCK);
 
-//----------------------------------------------------------
-// Interupt to receive data on software serial
-//----------------------------------------------------------
-// Interrupt is called once a millisecond, looks for any new GPS data, and stores it Note : to be confirmed for use with btSerial
-SIGNAL(TIMER0_COMPA_vect) {
-  char c = GPS.read();
-  // if you want to debug, this is a good time to do it!
-    if (c) Serial.print(c);   
-}
 
-// To set interupt for reading gps : Note : to be confirmed for use with btSerial
-bool usingInterrupt;
-void useInterrupt(boolean v) {
-  if (v) {
-    // Timer0 is already used for millis() - we'll just interrupt somewhere
-    // in the middle and call the "Compare A" function above
-    OCR0A = 0xAF;
-    TIMSK0 |= _BV(OCIE0A);
-    usingInterrupt = true;
-  } else {
-    // do not call the interrupt function COMPA anymore
-    TIMSK0 &= ~_BV(OCIE0A);
-    usingInterrupt = false;
-  }
-}
 
 RobotMotorBoard::RobotMotorBoard(){
 	// Do nothing
@@ -77,12 +80,12 @@ RobotMotorBoard::RobotMotorBoard(){
 void RobotMotorBoard::beginGps(){
     // 9600 NMEA is the default baud rate for Adafruit MTK GPS's- some use 4800
     GPS.begin(9600);
-
-	// Output max info
+    // Output max info
 	GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
-	// Refresh each 5 seconds
-    GPS.sendCommand(PMTK_SET_NMEA_UPDATE_5SEC);
-	 
+	// Refresh each 1 seconds
+    GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);
+    delay(1000);
+    gpsSerial.end();
 }
 
 
@@ -91,14 +94,7 @@ void RobotMotorBoard::begin(){
 	Serial1.begin(9600);
 	messageIn.begin(&Serial1);
 	messageOut.begin(&Serial1);
-
-	//init MUX
-	/*
-	uint8_t MuxPins[]={MUXA,MUXB,MUXC};
-	this->IRs.begin(MuxPins,MUX_IN,3);
-	pinMode(MUXI,INPUT);
-	digitalWrite(MUXI,LOW);
-	*/
+	btSerial.begin(19200);
 	dht.begin();
 	isPaused=false;
 }
@@ -106,52 +102,69 @@ void RobotMotorBoard::begin(){
 // Memory of last timer
 uint32_t timer = millis();
 void RobotMotorBoard::processGps(){
-  // reading a char from gps serial line
-  char c = GPS.read();
-
-// According to the GPS, my location is 4042.6142,N (Latitude 40 degrees, 42.6142 decimal minutes North) & 07400.4168,W. (Longitude 74 degrees, 0.4168 decimal minutes West) To look at this location in Google maps, type +40° 42.6142', -74° 00.4168' into the google maps search box . Unfortunately gmaps requires you to use +/- instead of NSWE notation. N and E are positive, S and W are negative.
-//People often get confused because the GPS is working but is "5 miles off" - this is because they are not parsing the lat/long data correctly. Despite appearances, the geolocation data is NOT in decimal degrees. It is in degrees and minutes in the following format: Latitude: DDMM.MMMM (The first two characters are the degrees.) Longitude: DDDMM.MMMM (The first three characters are the degrees.)
-  // We met the next timer 
-  if (millis() > timer)
-	{
-	  timer = millis() + 5000;
-	  if (GPS.newNMEAreceived()) {
-		// a tricky thing here is if we print the NMEA sentence, or data
-		// we end up not listening and catching other sentences! 
-		// so be very wary if using OUTPUT_ALLDATA and trytng to print out data
-		Serial.println(GPS.lastNMEA());   // this also sets the newNMEAreceived() flag to false
-  
-		if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
-		  return;  // we can fail to parse a sentence in which case we should just wait for another
-		Serial.print("\nTime: ");
-		Serial.print(GPS.hour, DEC); Serial.print(':');
-		Serial.print(GPS.minute, DEC); Serial.print(':');
-		Serial.print(GPS.seconds, DEC); Serial.print('.');
-		Serial.println(GPS.milliseconds);
-		Serial.print("Date: ");
-		Serial.print(GPS.day, DEC); Serial.print('/');
-		Serial.print(GPS.month, DEC); Serial.print("/20");
-		Serial.println(GPS.year, DEC);
-		Serial.print("Fix: "); Serial.print((int)GPS.fix);
-		Serial.print(" quality: "); Serial.println((int)GPS.fixquality); 
-		if (GPS.fix) {
-		  Serial.print("Location: ");
-		  if (GPS.lat == 'S') { GPS.latitude *= -1; }
-		  Serial.print(GPS.latitude, 4); Serial.print(GPS.lat);
-		  Serial.print(", "); 
-		  if (GPS.lon == 'W') { GPS.longitude *= -1; }
-		  Serial.print(GPS.longitude, 4); Serial.println(GPS.lon);
-		  
-		  Serial.print("Speed (knots): "); Serial.println(GPS.speed);
-		  Serial.print("Angle: "); Serial.println(GPS.angle);
-		  Serial.print("Altitude: "); Serial.println(GPS.altitude);
-		  Serial.print("Satellites: "); Serial.println((int)GPS.satellites);
-		}
-	  }
-	  
-	}//if (millis() > updateTime)
-  // if a sentence is received, we can check the checksum, parse it...
+  bool notRec = true;
+  btSerial.end();
+  gpsSerial.begin(9600);
+  char c;
+  while (notRec ) {
+	// reading a char from gps serial line
+	c = GPS.read();
+	if (c != 0 ) 
+	  Serial.print(c);
+	// According to the GPS, my location is 4042.6142,N (Latitude 40 degrees, 42.6142 decimal minutes North) & 07400.4168,W. (Longitude 74 degrees, 0.4168 decimal minutes West) To look at this location in Google maps, type +40° 42.6142', -74° 00.4168' into the google maps search box . Unfortunately gmaps requires you to use +/- instead of NSWE notation. N and E are positive, S and W are negative.
+	//People often get confused because the GPS is working but is "5 miles off" - this is because they are not parsing the lat/long data correctly. Despite appearances, the geolocation data is NOT in decimal degrees. It is in degrees and minutes in the following format: Latitude: DDMM.MMMM (The first two characters are the degrees.) Longitude: DDDMM.MMMM (The first three characters are the degrees.)
+	// We met the next timer 
+	if (GPS.newNMEAreceived()) {
+	  // a tricky thing here is if we print the NMEA sentence, or data
+	  // we end up not listening and catching other sentences! 
+	  // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
+	  if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
+		return;  // we can fail to parse a sentence in which case we should just wait for another
+	  notRec = false;
+	}
+  }
+  correctDateHour();
+  gpsSerial.end();
+  btSerial.begin(19200);
 }
+
+// Correct the gps date and time
+void RobotMotorBoard::correctDateHour() {
+    bool correct = false;
+	// Correct hour if = 0 : robot not working at 0:0:0 
+	if (awbbSensorDataBuf.hour == 0 && awbbSensorDataBuf.minute == 0 && awbbSensorDataBuf.seconds == 0 ) {
+	  if (  timeStatus() == timeSet ) {
+		awbbSensorDataBuf.hour = hour();
+		awbbSensorDataBuf.minute = minute();
+		awbbSensorDataBuf.seconds = second();
+	  }
+	  correct = true;
+	}
+	// Correct date if year no good
+	if ( awbbSensorDataBuf.year < 10 || awbbSensorDataBuf.year > 25  ) {
+	  if (  timeStatus() == timeSet ) {
+		awbbSensorDataBuf.year = year()-2000;
+		awbbSensorDataBuf.month = month();
+		awbbSensorDataBuf.day = day();
+	  }
+	  correct = true;
+	}
+	// This is a good time and date, register it for future in the time module.
+	if ( !correct ) {
+	  setTime(awbbSensorDataBuf.hour,
+			  awbbSensorDataBuf.minute,
+			  awbbSensorDataBuf.seconds,
+			  awbbSensorDataBuf.day,
+			  awbbSensorDataBuf.month,
+			  awbbSensorDataBuf.year);
+	}
+}
+
+// Counter char and other think for cmd
+char c;
+char cpt=0;
+char cmd[20];
+bool cmdok = false;
 
 void RobotMotorBoard::process(){
 	if(isPaused)return;//skip process if the mode is paused
@@ -168,6 +181,42 @@ void RobotMotorBoard::process(){
 		//setSpeed(255,255);
 		//delay(100);
 	}
+	// Bluetooth command reception
+	 if ( btSerial.available()) {
+	   c = btSerial.read();
+	   if ( c == '$' ) {
+		 cpt = 0;
+		 // If End of command caractere
+	   } else if ( c == '\n' || c == '%') {
+		 cmd[cpt++] = 0;
+		 cmdok = true;
+		 Serial.print("Command : '");
+		 Serial.print(cmd);
+		 Serial.println("'");
+		 // Reply ok directly to acq (not hack ) the command
+		 btSerial.print("$");
+		 btSerial.print(cmd[0]);
+		 btSerial.print("OK\r\n");
+		 // Direct implementation of Init command
+		 // Register the time in time module.
+		 if (cmd[0] == COMMAND_EXT_INIT) {
+		     time_t montime = atol(cmd+1);
+			 setTime(montime);
+			 Serial.print("Setting time ");
+			 Serial.println(montime);
+			 Serial.println(second());
+			 Serial.println(minute());
+			 Serial.println(hour());
+			 Serial.println(day());
+			 Serial.println(month());
+			 Serial.println(year());
+		 }
+	   } else {
+		 if ( cpt +1 < sizeof(cmd)) {
+		   cmd[cpt++] = c;
+		 }
+	   }
+	 }
 }
 void RobotMotorBoard::pauseMode(bool onOff){
 	if(onOff){
@@ -185,9 +234,13 @@ void RobotMotorBoard::parseCommand(){
 	int speedL;
 	int speedR;
 	if(this->messageIn.receiveData()){
-		//Serial.println("data received");
+#ifdef DEBUG_MODE
+		Serial.println("data received");
+#endif
 		uint8_t command=messageIn.readByte();
-		//Serial.println(command);
+#ifdef DEBUG_MODE
+		Serial.println(command);
+#endif
 		switch(command){
 			case COMMAND_SWITCH_MODE:
 				modeName=messageIn.readByte();
@@ -237,20 +290,23 @@ void RobotMotorBoard::parseCommand(){
 					messageIn.readByte()	//IntegrationTime
 				);
 				break;
-			case COMMAND_READ_TH:
-				_readTH();
+			case COMMAND_READ_CMD:
+				_readCmd();
 				break;
-			case COMMAND_READ_GPS_TIMEDATE:
-				_readGPSTimeDate();
+			case COMMAND_SEND_CMD_DATA:
+				_sendCmdData();
 				break;
-			case COMMAND_READ_GPS_COORD:
-				_readGPSCoord();
+			case COMMAND_COUNTFILE_CMD_DATA:
+			  {
+			    uint32_t filesize;
+			    uint32_t lastpos;
+			    filesize=messageIn.readInt32();
+			    lastpos=messageIn.readInt32();
+				_sendCountfileData(filesize,lastpos);
+			  }
 				break;
-			case COMMAND_READ_CO2:
-				_readCO2();
-				break;
-			case COMMAND_READ_SOUND:
-				_readSoundLevel();
+			case COMMAND_READ_SENSORS:
+				_readSensors();
 				break;
 		}
 	}
@@ -410,76 +466,90 @@ void RobotMotorBoard::reportActionDone(){
 	messageOut.sendData();
 }
 
-void RobotMotorBoard::_readTH(){
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
+void RobotMotorBoard::_readCmd(){
+  byte status;
+  uint8_t i;
+  messageOut.writeByte(COMMAND_READ_CMD_RE);
+  if ( cmdok ) {
+	messageOut.writeByte(cpt);
+	for ( i=0; i < cpt; i++ )
+	  messageOut.writeByte(cmd[i]);
+  } else {
+	messageOut.writeByte(0);
+  }
+  messageOut.sendData();
+  cmdok = false;
+}
+
+void RobotMotorBoard::_sendCmdData(){
+  uint8_t i;
+  Serial.print("_sendCmdData ");  
+  uint8_t c = -1;
+  uint8_t cpt = 0;
+  btSerial.write('$');
+  btSerial.write('G');
+  while (c != 0 && c != '\n') {
+	c = messageIn.readByte();
+	if (btSerial.overflow()) Serial.println("BLEoverflow");
+	btSerial.write(c);
+	cpt ++;
+  }
   
-	Serial.print(h);
-	Serial.print(" ");
-	Serial.println(t);
+  Serial.println(cpt);
+  messageOut.writeByte(COMMAND_SEND_CMD_DATA_RE);
+  //  while(btSerial.available()) ;
+  c = btSerial.read();
+  messageOut.writeByte(c);
+  messageOut.sendData();
+}
+
+void RobotMotorBoard::_sendCountfileData(uint32_t filesize,uint32_t lastpos){
+  Serial.print("_sendCountfileData ");  
+  btSerial.write('$');
+  btSerial.write('C');
+  btSerial.print("FILESIZE:");
+  btSerial.print(filesize);
+  btSerial.print(";");
+  btSerial.println(lastpos);
   
-	messageOut.writeByte(COMMAND_READ_TH_RE);
-	messageOut.writeInt(t*10);
-	messageOut.writeInt(h*10);
-	messageOut.sendData();	
+  messageOut.writeByte(COMMAND_COUNTFILE_CMD_DATA_RE);
+  messageOut.sendData();
 }
 
-void RobotMotorBoard::_readGPSTimeDate(){
-	
-	messageOut.writeByte(COMMAND_READ_GPS_TIMEDATE_RE);
-	messageOut.writeByte(GPS.hour);
-	messageOut.writeByte(GPS.minute);
-	messageOut.writeByte(GPS.seconds);
-	messageOut.writeInt(GPS.milliseconds);
-	messageOut.writeByte(GPS.day);
-	messageOut.writeByte(GPS.month);
-	messageOut.writeByte(GPS.year);
-    messageOut.sendData();	
-}
-
-// Used to convert Bytes to float
-union float2bytes { float f; char b[sizeof(float)]; };
-
-void RobotMotorBoard::_readGPSCoord(){
-	
-	messageOut.writeByte(COMMAND_READ_GPS_COORD_RE);
-	messageOut.writeByte(GPS.fix);
-	messageOut.writeByte(GPS.satellites);
-
-	float2bytes f2b;
-	uint8_t i;
-	f2b.f = GPS.latitude;
-	for ( i=0; i < sizeof(float); i++ )
-		messageOut.writeByte(f2b.b[i]);
-	f2b.f = GPS.longitude;
-	for ( i=0; i < sizeof(float); i++ )
-		messageOut.writeByte(f2b.b[i]);
-	f2b.f = GPS.altitude;
-	for ( i=0; i < sizeof(float); i++ )
-		messageOut.writeByte(f2b.b[i]);
-	messageOut.sendData();	
-}
-
-void RobotMotorBoard::_readSoundLevel(){
-	messageOut.writeByte(COMMAND_READ_SOUND_RE);
-	float2bytes f2b;
-	uint8_t i;
-	f2b.f = readSoundSensor(SOUND_PIN);
-	Serial.println("readSoundSensor");
-	Serial.println(f2b.f);
-	for ( i=0; i < sizeof(float); i++ )
-		messageOut.writeByte(f2b.b[i]);
-	messageOut.sendData();	
-}
-
-
-void RobotMotorBoard::_readCO2(){
+void RobotMotorBoard::_collectSensors(){
+	// Temperature/Hygro
+	awbbSensorDataBuf.hygro = dht.readHumidity();
+	awbbSensorDataBuf.thermo = dht.readTemperature();
+	// Sound Level
+	awbbSensorDataBuf.vSound = readSoundSensor(SOUND_PIN);
+	// CO2 density
 	gasSensor.read();
-    int CO2Density = gasSensor.getPPM();
-	messageOut.writeByte(COMMAND_READ_CO2_RE);
-	messageOut.writeInt(CO2Density);
-	messageOut.sendData();
+    awbbSensorDataBuf.CO2Density = gasSensor.getPPM();
 }
+
+void RobotMotorBoard::_readSensors(){
+    Serial.println("_readSensors");
+	// Read gps information awbbSensorDataBuf is completed with
+	processGps();
+	// Collect all motor sensor value
+	_collectSensors();
+	// Complete with ligth on control board
+	awbbSensorDataBuf.vLight = messageIn.readInt();
+	EnvRating envRating;
+	// Calcul rating
+    envRating.addLight(awbbSensorDataBuf.vLight);
+    envRating.addTemp(awbbSensorDataBuf.hygro);
+    envRating.addHygro(awbbSensorDataBuf.hygro);
+    envRating.addCO2(awbbSensorDataBuf.CO2Density);
+    envRating.addSound(awbbSensorDataBuf.vSound);
+    // Process the rating
+    awbbSensorDataBuf.rating = envRating.getRating();
+	// Send the all data
+	messageOut.writeByte(COMMAND_READ_SENSORS_RE);
+	messageOut.writeBuffer(sizeof(awbbSensorDataBuf),(uint8_t *)&awbbSensorDataBuf);
+	messageOut.sendData();	
+}
+
 
 
 RobotMotorBoard RobotMotor=RobotMotorBoard();

@@ -53,28 +53,34 @@ boolean Adafruit_GPS::parse(char *nmea) {
     p = strchr(p, ',')+1;
     float timef = atof(p);
     uint32_t time = timef;
-    hour = time / 10000;
-    minute = (time % 10000) / 100;
-    seconds = (time % 100);
+    data->hour = time / 10000;
+    data->minute = (time % 10000) / 100;
+    data->seconds = (time % 100);
 
-    milliseconds = fmod(timef, 1.0) * 1000;
+    data->milliseconds = fmod(timef, 1.0) * 1000;
 
     // parse out latitude
     p = strchr(p, ',')+1;
-    latitude = atof(p);
+    data->latitude = atof(p);
 
     p = strchr(p, ',')+1;
     if (p[0] == 'N') lat = 'N';
-    else if (p[0] == 'S') lat = 'S';
+    else if (p[0] == 'S') {
+	  lat = 'S';
+	  data->latitude *= -1;
+	}
     else if (p[0] == ',') lat = 0;
     else return false;
 
     // parse out longitude
     p = strchr(p, ',')+1;
-    longitude = atof(p);
+    data->longitude = atof(p);
 
     p = strchr(p, ',')+1;
-    if (p[0] == 'W') lon = 'W';
+    if (p[0] == 'W') {
+	  lon = 'W';
+	  data->longitude *= -1;
+	}
     else if (p[0] == 'E') lon = 'E';
     else if (p[0] == ',') lon = 0;
     else return false;
@@ -83,13 +89,13 @@ boolean Adafruit_GPS::parse(char *nmea) {
     fixquality = atoi(p);
 
     p = strchr(p, ',')+1;
-    satellites = atoi(p);
+    data->satellites = atoi(p);
 
     p = strchr(p, ',')+1;
     HDOP = atof(p);
 
     p = strchr(p, ',')+1;
-    altitude = atof(p);
+    data->altitude = atof(p);
     p = strchr(p, ',')+1;
     p = strchr(p, ',')+1;
     geoidheight = atof(p);
@@ -103,54 +109,60 @@ boolean Adafruit_GPS::parse(char *nmea) {
     p = strchr(p, ',')+1;
     float timef = atof(p);
     uint32_t time = timef;
-    hour = time / 10000;
-    minute = (time % 10000) / 100;
-    seconds = (time % 100);
+    data->hour = time / 10000;
+    data->minute = (time % 10000) / 100;
+    data->seconds = (time % 100);
 
-    milliseconds = fmod(timef, 1.0) * 1000;
+    data->milliseconds = fmod(timef, 1.0) * 1000;
 
     p = strchr(p, ',')+1;
     // Serial.println(p);
     if (p[0] == 'A') 
-      fix = true;
+      data->fix = true;
     else if (p[0] == 'V')
-      fix = false;
+      data->fix = false;
     else
       return false;
 
     // parse out latitude
     p = strchr(p, ',')+1;
-    latitude = atof(p);
+    data->latitude = atof(p);
 
     p = strchr(p, ',')+1;
     if (p[0] == 'N') lat = 'N';
-    else if (p[0] == 'S') lat = 'S';
+    else if (p[0] == 'S') {
+	  lat = 'S';
+	  data->latitude *= -1;
+	}
     else if (p[0] == ',') lat = 0;
     else return false;
 
     // parse out longitude
     p = strchr(p, ',')+1;
-    longitude = atof(p);
+    data->longitude = atof(p);
 
     p = strchr(p, ',')+1;
-    if (p[0] == 'W') lon = 'W';
+    if (p[0] == 'W') {
+	  lon = 'W';
+	  data->longitude *= -1;
+	}
     else if (p[0] == 'E') lon = 'E';
     else if (p[0] == ',') lon = 0;
     else return false;
 
-    // speed
+    // data->speed
     p = strchr(p, ',')+1;
-    speed = atof(p);
+    data->speed = atof(p);
 
     // angle
     p = strchr(p, ',')+1;
-    angle = atof(p);
+    data->angle = atof(p);
 
     p = strchr(p, ',')+1;
     uint32_t fulldate = atof(p);
-    day = fulldate / 10000;
-    month = (fulldate % 10000) / 100;
-    year = (fulldate % 100);
+    data->day = fulldate / 10000;
+    data->month = (fulldate % 10000) / 100;
+    data->year = (fulldate % 100);
 
     // we dont parse the remaining, yet!
     return true;
@@ -205,23 +217,24 @@ char Adafruit_GPS::read(void) {
 
 // Constructor when using SoftwareSerial or NewSoftSerial
 #if ARDUINO >= 100
-Adafruit_GPS::Adafruit_GPS(SoftwareSerial *ser)
+Adafruit_GPS::Adafruit_GPS(SoftwareSerial *ser, awbbSensorData *SensorData)
 #else
-Adafruit_GPS::Adafruit_GPS(NewSoftSerial *ser) 
+Adafruit_GPS::Adafruit_GPS(NewSoftSerial *ser, awbbSensorData *SensorData) 
 #endif
 {
-  common_init();     // Set everything to common state, then...
+  common_init(SensorData);     // Set everything to common state, then...
   gpsSwSerial = ser; // ...override gpsSwSerial with value passed.
 }
 
 // Constructor when using HardwareSerial
-Adafruit_GPS::Adafruit_GPS(HardwareSerial *ser) {
-  common_init();  // Set everything to common state, then...
+Adafruit_GPS::Adafruit_GPS(HardwareSerial *ser, awbbSensorData *SensorData) {
+  common_init(SensorData);  // Set everything to common state, then...
   gpsHwSerial = ser; // ...override gpsHwSerial with value passed.
 }
 
 // Initialization code used by all constructor types
-void Adafruit_GPS::common_init(void) {
+void Adafruit_GPS::common_init(awbbSensorData *SensorData) {
+  data = SensorData;
   gpsSwSerial = NULL; // Set both to NULL, then override correct
   gpsHwSerial = NULL; // port pointer in corresponding constructor
   recvdflag   = false;
@@ -230,13 +243,13 @@ void Adafruit_GPS::common_init(void) {
   currentline = line1;
   lastline    = line2;
 
-  hour = minute = seconds = year = month = day =
-    fixquality = satellites = 0; // uint8_t
+  data->hour = data->minute = data->seconds = data->year = data->month = data->day =
+    fixquality = data->satellites = 0; // uint8_t
   lat = lon = mag = 0; // char
-  fix = false; // boolean
-  milliseconds = 0; // uint16_t
-  latitude = longitude = geoidheight = altitude =
-    speed = angle = magvariation = HDOP = 0.0; // float
+  data->fix = false; // boolean
+  data->milliseconds = 0; // uint16_t
+  data->latitude = data->longitude = geoidheight = data->altitude =
+    data->speed = data->angle = magvariation = HDOP = 0.0; // float
 }
 
 void Adafruit_GPS::begin(uint16_t baud)
@@ -304,7 +317,6 @@ boolean Adafruit_GPS::LOCUS_StartLogger(void) {
 
 boolean Adafruit_GPS::LOCUS_ReadStatus(void) {
   sendCommand(PMTK_LOCUS_QUERY_STATUS);
-  Serial.println("toto2");
   if (! waitForSentence("$PMTKLOG"))
     return false;
 
@@ -331,6 +343,7 @@ boolean Adafruit_GPS::LOCUS_ReadStatus(void) {
       response++;
     }
   }
+#ifdef LOCUS
   LOCUS_serial = parsed[0];
   LOCUS_type = parsed[1];
   if (isAlpha(parsed[2])) {
@@ -344,7 +357,7 @@ boolean Adafruit_GPS::LOCUS_ReadStatus(void) {
   LOCUS_status = !parsed[7];
   LOCUS_records = parsed[8];
   LOCUS_percent = parsed[9];
-
+#endif
   return true;
 }
 

@@ -13,34 +13,61 @@ void EasyTransfer2::begin(HardwareSerial *theSerial){
 	resetData();
 }
 
+void EasyTransfer2::writeFloat(float dat){
+    writeBuffer(sizeof(dat), (uint8_t *)&dat);
+}
+
+float EasyTransfer2::readFloat(){
+    float dat=0;
+    readBuffer(sizeof(dat), (uint8_t *)&dat);
+	return dat;
+}
+
+void EasyTransfer2::writeBuffer(uint8_t bufsize, uint8_t *bufdata){
+	uint8_t i;
+	for ( i=0; i < bufsize; i++ )
+	  writeByte(bufdata[i]);
+}
+
+void EasyTransfer2::readBuffer(uint8_t bufsize, uint8_t *bufdata){
+	uint8_t i;
+	for ( i=0; i < bufsize; i++ )
+	  bufdata[i] = readByte();
+}
+
 void EasyTransfer2::writeByte(uint8_t dat){
-	if(position<20)
+	if(position<MAXSIZE)
 		data[position++]=dat;
 		size++;
 }
-void EasyTransfer2::writeInt(int dat){
-	if(position<19){
-		data[position++]=dat>>8;
-		data[position++]=dat;
-		size+=2;
-	}
-}
+
 uint8_t EasyTransfer2::readByte(){
 	if(position>=size)return 0;
 	return data[position++];
 }
+
+void EasyTransfer2::writeInt(int dat){
+    writeBuffer(sizeof(dat), (uint8_t *)&dat);
+}
+
 int EasyTransfer2::readInt(){
-	if(position+1>=size)return 0;
-	int dat_1=data[position++]<<8;
-	int dat_2=data[position++];
-	int dat= dat_1 | dat_2;
+    int dat=0;
+    readBuffer(sizeof(dat), (uint8_t *)&dat);
+	return dat;
+}
+
+void EasyTransfer2::writeInt32(uint32_t  dat){
+    writeBuffer(sizeof(dat), (uint8_t *)&dat);
+}
+
+uint32_t EasyTransfer2::readInt32(){
+    uint32_t dat=0;
+    readBuffer(sizeof(dat), (uint8_t *)&dat);
 	return dat;
 }
 
 void EasyTransfer2::resetData(){
-	for(int i=0;i<20;i++){
-		data[i]=0;
-	}
+    memset(data, 0, MAXSIZE);
 	size=0;
 	position=0;
 }
@@ -121,7 +148,7 @@ boolean EasyTransfer2::receiveData(){
       if(calc_CS == data[rx_array_inx-1]){//CS good
 		//resetData();
         //memcpy(data,d,rx_len);
-		for(int i=0;i<20;i++){
+		for(int i=0;i<MAXSIZE;i++){
 			//Serial.print(data[i]);
 			//Serial.print(",");
 		}

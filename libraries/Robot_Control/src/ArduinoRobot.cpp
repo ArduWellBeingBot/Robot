@@ -10,7 +10,7 @@ RobotControl::RobotControl():Arduino_LCD(LCD_CS,DC_LCD,RST_LCD){
 }
 
 void RobotControl::begin(){
-	Wire.begin();
+	//Wire.begin();
 	//Compass
 	//nothing here
 		

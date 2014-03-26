@@ -28,6 +28,9 @@ GNU General Public License for more details.
 //make it a little prettier on the front end. 
 #define details(name) (byte*)&name,sizeof(name)
 
+// Used to convert Bytes to float
+union float2bytes { float f; char b[sizeof(float)]; };
+
 //Not neccessary, but just in case. 
 #if ARDUINO > 22
 #include "Arduino.h"
@@ -50,17 +53,22 @@ boolean receiveData();
 
 void writeByte(uint8_t dat);
 void writeInt(int dat);
-void writeSignedInt(int dat);
+void writeFloat(float dat);
 uint8_t readByte();
 int readInt();
+float readFloat();
+void writeBuffer(uint8_t bufsize, uint8_t *bufdata);
+void readBuffer(uint8_t bufsize, uint8_t *bufdata);
+void writeInt32(uint32_t dat);
+uint32_t readInt32();
 
 
 private:
 HardwareSerial *_serial;
 
 void resetData();
-
-uint8_t data[20];	//data storage, for both read and send
+#define MAXSIZE 100
+uint8_t data[MAXSIZE];	//data storage, for both read and send
 uint8_t position;
 uint8_t size; //size of data in bytes. Both for read and send
 //uint8_t * address;  //address of struct

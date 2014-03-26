@@ -25,18 +25,18 @@ void RobotControl::drawDire(int16_t dire){
 }
 
 void RobotControl::drawCompass(uint16_t value){
-	drawBase();
+  /*	drawBase();
 	drawDire(value);
-	debugPrint(value,57,76);
+	debugPrint(value,57,76);*/
 }
 
 //display logos 
 void RobotControl::displayLogos(){
-	_drawBMP("lg0.bmp",0,0);
+  /*	_drawBMP("lg0.bmp",0,0);
 	delay(2000);
 	_drawBMP("lg1.bmp",0,0);
 	delay(2000);
-	clearScreen();
+	clearScreen();*/
 }
 
 //wait for a button to be pressed

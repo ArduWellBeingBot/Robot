@@ -10,6 +10,7 @@
 #include "EEPROM_I2C.h"
 #include "Compass.h"
 #include "Fat16.h"
+#include "awbbSensors.h"
 
 #if ARDUINO >= 100
 #include "Arduino.h"
@@ -32,7 +33,7 @@
 #define BEEP_LONG    2
 
 // image locations on the EEPROM
- #define HOME_BMP	0
+#define HOME_BMP	0
 #define BATTERY_BMP	2048
 #define COMPASS_BMP	4096
 #define CONTROL_BMP	6144
@@ -59,6 +60,7 @@
 #define COMMAND_READ_TRIM_RE 81
 #define COMMAND_PAUSE_MODE 90
 #define COMMAND_LINE_FOLLOW_CONFIG 100
+/*
 #define COMMAND_READ_TH 110
 #define COMMAND_READ_TH_RE 111
 #define COMMAND_READ_GPS_TIMEDATE 120
@@ -69,7 +71,30 @@
 #define COMMAND_READ_CO2_RE 132
 #define COMMAND_READ_SOUND 140
 #define COMMAND_READ_SOUND_RE 141
+*/
+#define COMMAND_READ_CMD 150
+#define COMMAND_READ_CMD_RE 151
+#define COMMAND_SEND_CMD_DATA 160
+#define COMMAND_SEND_CMD_DATA_RE 161
+#define COMMAND_SEND_CMD_DATA_END 162
+#define COMMAND_SEND_CMD_DATA_END_RE 163
+#define COMMAND_READ_SENSORS 170
+#define COMMAND_READ_SENSORS_RE 171
+#define COMMAND_COUNTFILE_CMD_DATA 180
+#define COMMAND_COUNTFILE_CMD_DATA_RE 181
 
+//External command
+#define COMMAND_EXT_NULL     0
+#define COMMAND_EXT_ALIVE   'A'
+#define COMMAND_EXT_STANDBY 'S'
+#define COMMAND_EXT_GETDATA 'G'
+#define COMMAND_EXT_INIT 'I'
+#define COMMAND_EXT_REINITFILE 'R'
+#define COMMAND_EXT_COUNTFILE 'C'
+#define COMMAND_EXT_ONLYMEASURE 'O'
+#define COMMAND_EXT_REP_OK 0
+#define COMMAND_EXT_REP_KO 1
+#define COMMAND_EXT_REP_OK_DATA 2 // + len
 
 //component codename
 #define CN_LEFT_MOTOR	0
@@ -162,21 +187,6 @@ struct MOTOR_BOARD_DATA{
 	int _B_IR4;*/
 };
 
-//A data structure for storing the current GPS information
-struct GPS_DATA{
-	uint8_t fix;
-	uint8_t sat;
-	uint8_t hour;
-	uint8_t minute;
-	uint8_t seconds;
-	uint8_t milliseconds;
-	uint8_t day;
-	uint8_t month;
-	uint8_t year;
-        float   lat;
-        float   lon;
-        float   alt;
-};
 
 /*
 A message structure will be:
@@ -211,11 +221,13 @@ struct EEPROM_BMP{
 	uint16_t address;
 };
 
+#define LOG_FILENAME "AWBBlog.txt"
+
 //if you call #undef USE_SQUAWK_SYNTH_SD at the beginning of your sketch,
 //it's going to remove anything regarding sound playing
 
 class RobotControl:public Multiplexer, 
-public EEPROM_I2C, 
+//public EEPROM_I2C, 
 public Compass, 
 //public SquawkSynthSD, To save space
 //public FormattedText
@@ -234,7 +246,7 @@ public Arduino_LCD
 		
 		//IR sensors from the bottom board
 		//define an array as "int arr[4];", and supply the arry name here
-		uint16_t IRarray[5];
+		uint16_t IRarray[0];
 		void updateIR();
 		
 		//on board Potentiometor
@@ -318,20 +330,31 @@ public Arduino_LCD
 		void displayLogos();
 		void waitContinue(uint8_t key=BUTTON_MIDDLE);
 		
-		// Read temperature & hygro
-		void readTH(float &t,float &h);
+		// Read all the data from sensors on Motor Board
+		void readSensorsData(int ligth, awbbSensorData &awbbSensorDataBuf);
+        
+		// Read cmd
+		byte readCmd(char* text);
 
-                // Read GPS 
-                void readGPSTimeDate(GPS_DATA &gpsData);
-                void readGPSCoord(GPS_DATA &gpsData);
-                
-                // Read CO2 Sensor
-                void readCO2Sensor(int &value);
-                
-                //Read Sound Level sensor
-                void readSoundLevel(float &value);
-                
-	private:
+		// send cmd data
+		void sendCmdData(void);
+		// Count file size
+		void processFileSize(void);
+		// Store the timestamp
+		void storeTimestamp(char* text);
+		SdCard card;
+		Fat16 file;
+		// Contains all GPS information (get from motor_board)
+		awbbSensorData awbbSensorDataBuf;
+
+		char cmd[80];
+		uint32_t SDLastPos;
+
+        void initDataSDReading(bool openfile);
+        char SDReadByteSinceFromPos();
+		void afterDataSDReading();
+		void reInitFile();
+  private:
 		//Read & Write
 		uint8_t _getTypeCode(uint8_t port);//different ports need different actions
 		uint8_t _portToTopMux(uint8_t port);//get the number for multiplexer within top TKs
@@ -360,9 +383,7 @@ public Arduino_LCD
 		
 		
 		//SD
-		SdCard card;
-		Fat16 file;
-		Fat16 melody;
+	//	Fat16 melody;
 		void _enableSD();
 		
 		//keyboard
@@ -374,7 +395,7 @@ public Arduino_LCD
 		//uint8_t pinEcho_UR;
 		
 		//Melody
-		void playNote(byte period, word length, char modifier); 
+	//	void playNote(byte period, word length, char modifier); 
 		
 		//Communication
 		
@@ -389,7 +410,7 @@ public Arduino_LCD
 
 		
 };
-
+/*
 inline void RobotControl::userNameRead(char* container){
 	EEPROM_I2C::readBuffer(ADDRESS_USERNAME,(uint8_t*)container,18);
 }
@@ -415,7 +436,7 @@ inline void RobotControl::cityNameWrite(char* text){
 inline void RobotControl::countryNameWrite(char* text){
 	EEPROM_I2C::writePage(ADDRESS_COUNTRYNAME,(uint8_t*)text,18);
 }
-
+*/
 extern RobotControl Robot;
 
 #endif

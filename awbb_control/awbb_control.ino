@@ -25,30 +25,22 @@ gps data, temperature, hydrometrie, co2, sound, ligth
 // Integration of modified version of servo module
 #include "ServoRobot.h"
 
-// To manage the sensor
-#include "EnvRating.h"
-
 // time in ms between each measure. 
 // Robot will stop, take data and select a new direction
-#define MAX_RUNNING_TIME 10000
+#define MAX_RUNNING_TIME 20000
 
 // PIN
-uint8_t sensorPin      = TK2;  // M2 : pin of the range sensor
-uint8_t servoPin       = TKD4;  // pin of the servo
+uint8_t sensorPin    PROGMEM  = TK2;  // M2 : pin of the range sensor
+uint8_t servoPin     PROGMEM  = TKD4;  // pin of the servo
 // Note the servo is front of the robot when angle is 90 Degres.
-uint8_t lightSensorPin = TK4;    // M4 : pin of the LDR
+uint8_t lightSensorPin PROGMEM = TK4;    // M4 : pin of the LDR
 
 // Servo object
 Servo servo;
 
 // To manage data into the µSDCard
-SdCard card;
-Fat16 file;
-#define CSV_SEPARATOR F(";")
-#define LOG_FILENAME "AWBBlog.txt"
+//#define CSV_SEPARATOR F(";")
 
-// Contains all GPS information (get from motor_board)
-GPS_DATA gpsInfo;
 
 // To know if the robot has to move (external control)
 bool MOVE;
@@ -66,14 +58,14 @@ int imax = 0;
 // Table of angle
 int disttab[4];
 // Degres for each position
-unsigned char deg[4] = {
+unsigned char deg[4] PROGMEM = {
   170,
   135,
   45,
   10
   };
 // angle to turn by indice
-int turn[4] = {
+int turn[4] PROGMEM = {
   -90,
   -45,
   45,
@@ -82,28 +74,45 @@ int turn[4] = {
 // Counter of distance
 int countdist;
 
+byte mode ;
+#define MODE_STANDBY 1
+#define MODE_ALIVE 2
+#define MODE_GETDATA 3
+#define MODE_MEASURE 4
+#define MODE_ONLYMEASURE 5
+
+//#define DEBUGSTEP 1
+
 // Setup function
 void setup() {
   // initialize the Robot, SD card, and display
-  Serial.begin(9600);
+  Serial.begin(19200);
   Robot.begin();
+ // Serial.println("1");
   Robot.beginTFT();
   // Attach the servo
+  //Serial.println("2");
   servo.attach(servoPin);
+  //Serial.println("3");
   // Put in in front
   servo.write(90);
   // some delay
   delay(150);
-
+  //Serial.println("4");
+  
   // Replace Robot.beginSD() to avoid to call 'melody'
   // SD reader init on pin CARD_CS (D8) of the 32u4
-  card.init(0,CARD_CS);
+  Robot.card.init(0,CARD_CS);
   // return false if initialization failed
-  file.init(&card);
+  Robot.file.init(&Robot.card);
   // Activate moving
   MOVE = true;  
   // GPS data struct initilization
-  memset ((void*)&gpsInfo,0,sizeof(gpsInfo));
+  memset ((void*)&Robot.awbbSensorDataBuf,0,sizeof(Robot.awbbSensorDataBuf));
+
+  mode = MODE_ALIVE;
+  Serial.println("5");
+
 }// End Setup
 
 // Collect and Store data
@@ -111,79 +120,61 @@ void CollectAndStoreData() {
     //----------------------------------------------------------
     // Collect all the data from sensors
     //----------------------------------------------------------
-    // Get TimeStamp
-    Robot.readGPSTimeDate(gpsInfo);
-    
-    // Get GPS Lat/Long
-    Robot.readGPSCoord(gpsInfo);
-
-    //Launch all the analyzes
-    EnvRating rating;
-
-    // - temp/hygro
-    float t = -9999.9;
-    float h = -9999.9;
-    Robot.readTH(t,h);
-    rating.addTemp(t);
-    rating.addHygro(h);
-
-    // - CO2
-    int CO2Density = -9999;
-    Robot.readCO2Sensor(CO2Density);
-    rating.addCO2(CO2Density);
-        
+    Serial.println(">BC");
     // - light
-    float vLight = 0.0;
-    vLight = Robot.analogRead(lightSensorPin);
-    rating.addLight(vLight);
+    int vLight = Robot.analogRead(lightSensorPin);
 
-    // - Sound (take some time to analyze)
-    float vSound = -9999.9;
-    Robot.readSoundLevel(vSound);
-    rating.addSound(vSound);
+    Robot.readSensorsData(vLight,Robot.awbbSensorDataBuf);
 
     //----------------------------------------------------------
     // Save the collected data and the environment rating
     //----------------------------------------------------------
+  //  Serial.println("12");
 
     // Save the data into µSD
-    if (file.open(LOG_FILENAME, O_RDWR | O_CREAT | O_APPEND)) {
-      Serial.println("Writing...");
+    if (Robot.file.open(LOG_FILENAME, O_RDWR | O_CREAT | O_APPEND)) {
+      //Serial.println("Writing...");
       // Write a line
       //« YYYY-MM-DDTHH :MM :SS.mmm ;FIX;SAT;LAT ;LONG ;ALT ;LUMIERE ;TEMP ;HYGRO ;CO2 ;MICRO ;NOTE »
-      file.print(F("20"));
-      file.print(gpsInfo.year);
-      file.print(F("-"));
-      file.print(gpsInfo.month);
-      file.print(F("-"));
-      file.print(gpsInfo.day);
-      file.print(F(" "));
-      file.print(gpsInfo.hour);
-      file.print(F(":"));
-      file.print(gpsInfo.minute);
-      file.print(F(":"));
-      file.print(gpsInfo.seconds);
-      file.print(F("."));
-      file.print(gpsInfo.milliseconds);
-      file.print(F(";"));
-      file.print(gpsInfo.lat);
-      file.print(F(";"));
-      file.print(gpsInfo.lon);
-      file.print(F(";"));
-      file.print(gpsInfo.alt);
-      file.print(F(";"));
-      file.print(vLight);
-      file.print(F(";"));
-      file.print(t);
-      file.print(F(";"));
-      file.print(h);
-      file.print(F(";"));
-      file.print(CO2Density);
-      file.print(F(";"));
-      file.print(vSound);
-      file.print(F(";"));
-      file.println(rating.getRating());
-      file.close();
+      Robot.file.print(F("20"));
+      Robot.file.print(Robot.awbbSensorDataBuf.year);
+      Robot.file.print(F("-"));
+      Robot.file.print(Robot.awbbSensorDataBuf.month);
+      Robot.file.print(F("-"));
+      Robot.file.print(Robot.awbbSensorDataBuf.day);
+      Robot.file.print(F(" "));
+      Robot.file.print(Robot.awbbSensorDataBuf.hour);
+      Robot.file.print(F(":"));
+      Robot.file.print(Robot.awbbSensorDataBuf.minute);
+      Robot.file.print(F(":"));
+      Robot.file.print(Robot.awbbSensorDataBuf.seconds);
+      Robot.file.print(F("."));
+      Robot.file.print(Robot.awbbSensorDataBuf.milliseconds);
+      Robot.file.print(F(";"));
+      Robot.file.print(Robot.awbbSensorDataBuf.fix);
+      Robot.file.print(F(";"));
+      Robot.file.print(Robot.awbbSensorDataBuf.satellites);
+      Robot.file.print(F(";"));
+      Robot.file.print(Robot.awbbSensorDataBuf.latitude);
+      Robot.file.print(F(";"));
+      Robot.file.print(Robot.awbbSensorDataBuf.longitude);
+      Robot.file.print(F(";"));
+      Robot.file.print(Robot.awbbSensorDataBuf.altitude);
+      Robot.file.print(F(";"));
+      Robot.file.print(Robot.awbbSensorDataBuf.vLight);
+      Robot.file.print(F(";"));
+      Robot.file.print(Robot.awbbSensorDataBuf.thermo);
+      Robot.file.print(F(";"));
+      Robot.file.print(Robot.awbbSensorDataBuf.hygro);
+      Robot.file.print(F(";"));
+      Robot.file.print(Robot.awbbSensorDataBuf.CO2Density);
+      Robot.file.print(F(";"));
+      Robot.file.print(Robot.awbbSensorDataBuf.vSound);
+      Robot.file.print(F(";"));
+      Robot.file.println(Robot.awbbSensorDataBuf.rating);
+      
+      Robot.file.close();
+      
     }
 
     //----------------------------------------------------------
@@ -202,47 +193,47 @@ void CollectAndStoreData() {
 //    Robot.setTextSize(1);
     Robot.setCursor(0,0);
     Robot.setTextColor(ILI9163C_BLACK,ILI9163C_RED);
-    Robot.println(F("ArduWellBeingBot v1.0"));
+    Robot.println(F("ArduWellBeingBot v2.0"));
 
     Robot.setTextColor(ILI9163C_WHITE,ILI9163C_BLACK);
 #ifdef SCREEN_PRINT_DATE_TIME
    Robot.print(F("Date:"));
-   Robot.print(gpsInfo.day);
-   Robot.print("/");
-   Robot.print(gpsInfo.month);
-   Robot.print("/");   
-   Robot.println(gpsInfo.year);
+   Robot.print(Robot.awbbSensorDataBuf.day);
+   Robot.print(F("/"));
+   Robot.print(Robot.awbbSensorDataBuf.month);
+   Robot.print(F("/"));   
+   Robot.println(Robot.awbbSensorDataBuf.year);
    Robot.print(F("Time:"));
-   Robot.print(gpsInfo.hour);
-   Robot.print(":");
-   Robot.print(gpsInfo.minute);
-   Robot.print(":");
-   Robot.println(gpsInfo.seconds);
+   Robot.print(Robot.awbbSensorDataBuf.hour);
+   Robot.print(F(":"));
+   Robot.print(Robot.awbbSensorDataBuf.minute);
+   Robot.print(F(":"));
+   Robot.println(Robot.awbbSensorDataBuf.seconds);
 #endif
     Robot.print(F("Fix:"));
-    Robot.println(gpsInfo.fix);
+    Robot.println(Robot.awbbSensorDataBuf.fix);
     Robot.print(F("Sat:"));
-    Robot.println(gpsInfo.sat);
+    Robot.println(Robot.awbbSensorDataBuf.satellites);
 #ifdef SCREEN_PRINT_LAT_LON
     Robot.print(F("Lat:"));
-	Robot.println(gpsInfo.lat);
+	Robot.println(Robot.awbbSensorDataBuf.latitude);
 	Robot.print(F("Lon:"));
-	Robot.println(gpsInfo.lon);
+	Robot.println(Robot.awbbSensorDataBuf.longitude);
 	Robot.print(F("Alt:"));
-	Robot.println(gpsInfo.alt);
+	Robot.println(Robot.awbbSensorDataBuf.altitude);
 #endif
 #ifdef SCREEN_PRINT_MEASURE
     Robot.print(F("T/H:"));
-    Robot.print(t);
-    Robot.print("C/");
-    Robot.print(h);
-    Robot.println("%");
+    Robot.print(Robot.awbbSensorDataBuf.thermo);
+    Robot.print(F("C/"));
+    Robot.print(Robot.awbbSensorDataBuf.hygro);
+    Robot.println(F("%"));
     Robot.print(F("CO2:"));
-    Robot.println(CO2Density);
+    Robot.println(Robot.awbbSensorDataBuf.CO2Density);
     Robot.print(F("Light:"));
-    Robot.println(vLight);
+    Robot.println(Robot.awbbSensorDataBuf.vLight);
     Robot.print(F("Sound:"));
-    Robot.println(vSound);
+    Robot.println(Robot.awbbSensorDataBuf.vSound);
 #endif
 #ifdef SCREEN_PRINT_MOVE
     Robot.print(F("Turn:"));
@@ -252,29 +243,46 @@ void CollectAndStoreData() {
 //    Robot.setTextSize(3);
     Robot.println();
     Robot.print(F("Rating:"));
-    Robot.println(rating.getRating());
+    Robot.println(Robot.awbbSensorDataBuf.rating);
+    Robot.println();
+    Robot.println(Robot.cmd);
+    Robot.println();
+    Serial.println("<BC");
+
 }
+
 
 // Main loop
 void loop() {
   // we dont move
   flag = 0;
   // for indice
-  int i ;
-  
+  uint8_t i ;
+#ifdef DEBUGSTEP
+  Serial.println("A");
+#endif
   // Test of front distance
+  if ( mode == MODE_ALIVE || mode == MODE_ONLYMEASURE) {
   while( ((distfront = get3Distance()) < 30) // If an obstacle is less than 30cm away 
-         || (MOVE == false)                  // Or if we are connected to Serial
+         || (MOVE == false)        // Or if we are connected to Serial
        )
   {  
+#ifdef DEBUGSTEP
+  Serial.println("B");
+#endif
+    if (mode != MODE_ONLYMEASURE ) {
+      mode = MODE_MEASURE;
+    }
     // stop the motors
     Robot.motorsStop();
+    
     // Collect and Store Data
-	CollectAndStoreData();
+    CollectAndStoreData();
 
     //----------------------------------------------------------
     // Find the best direction
     //----------------------------------------------------------
+    if (mode != MODE_ONLYMEASURE ) {
     distmax = 0;
     imax=-1;
     // Robot.text(distfront,100,0);
@@ -295,9 +303,14 @@ void loop() {
       disttab[i] = dist;
       // 
       Robot.text(dist,5,i*160/4);
+#ifdef DEBUGSTEP
+        Serial.println("C");
+#endif
+
     }
-
-
+#ifdef DEBUGSTEP
+  Serial.println("D");
+#endif
   //----------------------------------------------------------
   // Turn in the best direction
   //----------------------------------------------------------
@@ -309,15 +322,21 @@ void loop() {
     delay(1000); 
     flag = 1;
     countdist = 0;
-	MOVE = true;
+    mode = MODE_ALIVE;
+    }  
+    MOVE = true;
   }// End Select best direction
+}
+#ifdef DEBUGSTEP
+Serial.println("E");
+#endif
 
   //----------------------------------------------------------
   // Let's go in the choosen direction
   //----------------------------------------------------------
 
   // if we just turn, start progresively
-  if (flag == 1) {
+  if (flag == 1 && mode == MODE_ALIVE) {
 	for(int i = 5 ; i< 10 ; i+=2 ) {
 	  Robot.motorsWrite(i*20, i*20); 
 	  delay(200);
@@ -325,13 +344,60 @@ void loop() {
 	flag = 0;
 	Robot.motorsWrite(255, 255);
   }    
+#ifdef DEBUGSTEP
+    Serial.println("F");
+#endif
+
   // Run
-  // Delay of 100 
+  // Delay of 100
   delay(100);
+
+#ifdef DEBUGSTEP
+        Serial.println("G");
+#endif
+#if 1
+      if ( Robot.readCmd(Robot.cmd) != 0 ) {
+        switch (Robot.cmd[0]) {
+          case COMMAND_EXT_ALIVE  : 
+            mode = MODE_ALIVE;
+            flag = 1; //restart motor
+            break;
+          case COMMAND_EXT_STANDBY :
+            mode = MODE_STANDBY;
+	    Robot.motorsWrite(0, 0);
+            break;
+          case COMMAND_EXT_ONLYMEASURE :
+            mode = MODE_ONLYMEASURE;
+            MOVE = false;
+	    Robot.motorsWrite(0, 0);
+            break;
+          case COMMAND_EXT_GETDATA :
+            Robot.println("GET DATA");
+            Robot.sendCmdData();
+            break;
+          case COMMAND_EXT_COUNTFILE :
+            Robot.processFileSize();
+            break;
+          case COMMAND_EXT_INIT :
+            Robot.storeTimestamp(Robot.cmd);
+            break;
+          case COMMAND_EXT_REINITFILE :
+            Robot.reInitFile();
+            break;
+          default : 
+            break;
+        }
+      }
+#endif
+#ifdef DEBUGSTEP
+     Serial.println("H");
+#endif
+
   countdist++;
   if ( countdist*100 % MAX_RUNNING_TIME == 0 ) {
 	MOVE = false;
   }
+            
 } //End loop()
 
 // Try to get best distance measure getting 3 dist and take the best.
@@ -368,6 +434,7 @@ float getDistance() {
   int sensorValue = Robot.analogRead(sensorPin);
   //Convert the sensor input to cm.
   float distance_cm = sensorValue*1.27;
+//  Serial.println(distance_cm);
   return distance_cm;  
 }
 

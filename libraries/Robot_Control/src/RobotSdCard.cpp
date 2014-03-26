@@ -3,7 +3,6 @@
 void RobotControl::beginSD(){
   card.init();
   file.init(&card);
-  melody.init(&card);
 }
 
 void RobotControl::_enableSD(){

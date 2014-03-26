@@ -21,10 +21,11 @@ All text above must be included in any redistribution
 #define _ADAFRUIT_GPS_H
 
 #if ARDUINO >= 100
- #include <SoftwareSerial.h>
+ #include <SoftwareSerialRobot.h>
 #else
  #include <NewSoftSerial.h>
 #endif
+#include <awbbSensors.h>
 
 // different commands to set the update rate from once a second (1 Hz) to 10 times a second (10Hz)
 #define PMTK_SET_NMEA_UPDATE_5SEC  "$PMTK220,5000*1B"
@@ -87,15 +88,15 @@ class Adafruit_GPS {
   void begin(uint16_t baud); 
 
 #if ARDUINO >= 100 
-  Adafruit_GPS(SoftwareSerial *ser); // Constructor when using SoftwareSerial
+  Adafruit_GPS(SoftwareSerial *ser, awbbSensorData *SensorData); // Constructor when using SoftwareSerial
 #else
-  Adafruit_GPS(NewSoftSerial  *ser); // Constructor when using NewSoftSerial
+  Adafruit_GPS(NewSoftSerial  *ser, awbbSensorData *SensorData); // Constructor when using NewSoftSerial
 #endif
-  Adafruit_GPS(HardwareSerial *ser); // Constructor when using HardwareSerial
+  Adafruit_GPS(HardwareSerial *ser, awbbSensorData *SensorData); // Constructor when using HardwareSerial
 
   char *lastNMEA(void);
   boolean newNMEAreceived();
-  void common_init(void);
+  void common_init(awbbSensorData *SensorData);
   void sendCommand(char *);
   void pause(boolean b);
 
@@ -107,12 +108,11 @@ class Adafruit_GPS {
   void interruptReads(boolean r);
 
   boolean wakeup(void);
- boolean standby(void);
+  boolean standby(void);
 
-  uint8_t hour, minute, seconds, year, month, day;
-  uint16_t milliseconds;
-  float latitude, longitude, geoidheight, altitude;
-  float speed, angle, magvariation, HDOP;
+  awbbSensorData *data;
+  float  geoidheight;
+  float magvariation, HDOP;
   char lat, lon, mag;
   boolean fix;
   uint8_t fixquality, satellites;
@@ -120,9 +120,11 @@ class Adafruit_GPS {
   boolean waitForSentence(char *wait, uint8_t max = MAXWAITSENTENCE);
   boolean LOCUS_StartLogger(void);
   boolean LOCUS_ReadStatus(void);
+#ifdef LOCUS 
 
   uint16_t LOCUS_serial, LOCUS_records;
   uint8_t LOCUS_type, LOCUS_mode, LOCUS_config, LOCUS_interval, LOCUS_distance, LOCUS_speed, LOCUS_status, LOCUS_percent;
+#endif
  private:
   boolean paused;
   

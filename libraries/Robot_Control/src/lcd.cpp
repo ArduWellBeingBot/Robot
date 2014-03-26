@@ -86,7 +86,7 @@ void RobotControl::drawBMP(char* filename, uint8_t x, uint8_t y){
 		Serial.println(_eeprom_bmp[j].height);
 	}
 	Serial.println();*/
-	if(_isEEPROM_BMP_Allocated){
+/*	if(_isEEPROM_BMP_Allocated){
 		for(int i=0;i<NUM_EEPROM_BMP;i++){
 			if(cmp(_eeprom_bmp[i].name,filename,7)){
 				/*Serial.println(_eeprom_bmp[i].name);
@@ -96,13 +96,13 @@ void RobotControl::drawBMP(char* filename, uint8_t x, uint8_t y){
 				Serial.print(_eeprom_bmp[i].width);
 				Serial.print(" ");
 				Serial.println(_eeprom_bmp[i].height);*/
-				_drawBMP(_eeprom_bmp[i].address,x,y,_eeprom_bmp[i].width,_eeprom_bmp[i].height);
+/*				_drawBMP(_eeprom_bmp[i].address,x,y,_eeprom_bmp[i].width,_eeprom_bmp[i].height);
 				return;
 			}
 		}
 	}else{
 		_drawBMP(filename,x,y);//goes to SD
-	}
+	}*/
 }
 bool cmp(char* str1, char* str2, uint8_t len){
   for(uint8_t i=0;i<len;i++){
@@ -113,7 +113,7 @@ bool cmp(char* str1, char* str2, uint8_t len){
 }
 
 void RobotControl::_drawBMP(uint32_t iconOffset, uint8_t x, uint8_t y, uint8_t width, uint8_t height){
-	uint8_t screenWidth=Arduino_LCD::width();
+/*	uint8_t screenWidth=Arduino_LCD::width();
 	uint8_t screenHeight=Arduino_LCD::height();
 	if((x >= screenWidth) || (y >= screenHeight)) return;
 
@@ -125,12 +125,12 @@ void RobotControl::_drawBMP(uint32_t iconOffset, uint8_t x, uint8_t y, uint8_t w
 	Arduino_LCD::setAddrWindow(x, y, x+width-1, y+height-1);
 
 	// launch the reading command
-	_drawBMP_EEPROM(iconOffset, width, height);
+	_drawBMP_EEPROM(iconOffset, width, height);*/
 }
 
 //  Draw BMP from SD card through the filename
 void RobotControl::_drawBMP(char* filename, uint8_t posX, uint8_t posY){
-	uint8_t  bmpWidth, bmpHeight;   // W+H in pixels
+/*	uint8_t  bmpWidth, bmpHeight;   // W+H in pixels
 	uint8_t  bmpDepth;              // Bit depth (currently must be 24)
 	uint32_t bmpImageoffset;        // Start of image data in file
 	uint32_t rowSize;               // Not always = bmpWidth; may have padding
@@ -212,10 +212,10 @@ void RobotControl::_drawBMP(char* filename, uint8_t posX, uint8_t posY){
 					} // end pixel
 				} // end scanline
 				//_enableSD();
-			} // end goodBmp*/
+			} // end goodBmp
 		}
 	}
-	file.close();
+	file.close();*/
 	//_enableLCD();
 }
 uint16_t read16(Fat16& f) {
@@ -235,14 +235,14 @@ uint16_t color565(uint8_t r, uint8_t g, uint8_t b) {
 
 
 void RobotControl::_drawBMP_EEPROM(uint16_t address, uint8_t width, uint8_t height){
-	uint16_t u16retVal = 0;
-	EEPROM_I2C::_beginTransmission(address);
-	EEPROM_I2C::_endTransmission();
+	// uint16_t u16retVal = 0;
+	// EEPROM_I2C::_beginTransmission(address);
+	// EEPROM_I2C::_endTransmission();
 	/*Wire.beginTransmission(DEVICEADDRESS);
 	Wire.write( (address >> 8) & 0xFF );
 	Wire.write( (address >> 0) & 0xFF );
 	Wire.endTransmission();*/
-
+/*
 	long s = width * height ;
 	for(long j = 0; j < (long) s >> 4; j++) { // divided by 32, times 2
 		Wire.requestFrom(DEVICEADDRESS, 32);
@@ -252,10 +252,10 @@ void RobotControl::_drawBMP_EEPROM(uint16_t address, uint8_t width, uint8_t heig
 			Arduino_LCD::pushColor(u16retVal);
 		}
 	}
-
+*/
 }
 void RobotControl::beginBMPFromEEPROM(){
-	_eeprom_bmp=(EEPROM_BMP*)malloc(NUM_EEPROM_BMP*sizeof(EEPROM_BMP));
+/*	_eeprom_bmp=(EEPROM_BMP*)malloc(NUM_EEPROM_BMP*sizeof(EEPROM_BMP));
 	EEPROM_I2C::_beginTransmission(0);
 	EEPROM_I2C::_endTransmission();
 	
@@ -271,9 +271,9 @@ void RobotControl::beginBMPFromEEPROM(){
 		_eeprom_bmp[j].address=_eeprom_bmp[j].address + (Wire.read() << 8);//address
 	}
 	_isEEPROM_BMP_Allocated=true;
-	
+	*/
 }
 void RobotControl::endBMPFromEEPROM(){
-	free(_eeprom_bmp);
-	_isEEPROM_BMP_Allocated=false;
+	// free(_eeprom_bmp);
+	// _isEEPROM_BMP_Allocated=false;
 }

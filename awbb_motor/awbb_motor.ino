@@ -7,14 +7,12 @@
 #include <ArduinoRobotMotorBoard.h>
 
 void setup(){
-  Serial.begin(9600);
-  delay(2000);
+  Serial.begin(19200);
+  delay(1000);
   RobotMotor.begin();
   RobotMotor.beginGps();
-
 }
 void loop(){
   RobotMotor.parseCommand();
   RobotMotor.process();
-  RobotMotor.processGps();
 }

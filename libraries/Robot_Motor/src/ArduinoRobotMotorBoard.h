@@ -29,6 +29,7 @@
 #define COMMAND_READ_TRIM_RE 81
 #define COMMAND_PAUSE_MODE 90
 #define COMMAND_LINE_FOLLOW_CONFIG 100
+/*
 #define COMMAND_READ_TH 110
 #define COMMAND_READ_TH_RE 111
 #define COMMAND_READ_GPS_TIMEDATE 120
@@ -39,6 +40,27 @@
 #define COMMAND_READ_CO2_RE 132
 #define COMMAND_READ_SOUND 140
 #define COMMAND_READ_SOUND_RE 141
+*/
+#define COMMAND_READ_CMD 150
+#define COMMAND_READ_CMD_RE 151
+#define COMMAND_SEND_CMD_DATA 160
+#define COMMAND_SEND_CMD_DATA_RE 161
+#define COMMAND_READ_SENSORS 170
+#define COMMAND_READ_SENSORS_RE 171
+#define COMMAND_COUNTFILE_CMD_DATA 180
+#define COMMAND_COUNTFILE_CMD_DATA_RE 181
+
+//External command
+#define COMMAND_EXT_NULL     0
+#define COMMAND_EXT_ALIVE   'A'
+#define COMMAND_EXT_STANDBY 'S'
+#define COMMAND_EXT_GETDATA 'G'
+#define COMMAND_EXT_INIT 'I'
+#define COMMAND_EXT_REINITFILE 'R'
+#define COMMAND_EXT_COUNTFILE 'C'
+#define COMMAND_EXT_REP_OK 0
+#define COMMAND_EXT_REP_KO 1
+#define COMMAND_EXT_REP_OK_DATA 2 // + len
 
 //component codename
 #define CN_LEFT_MOTOR	0
@@ -99,6 +121,8 @@ read CO2 (1):
 	byte COMMAND_READ_CO2;
 read CO2 _return_ (4):
 	byte COMMAND_READ_CO2_RE, float co2density
+read CMD _return_ (var):
+	byte COMMAND_READ_CMD_RE, command
 
 
 */
@@ -122,6 +146,7 @@ class RobotMotorBoard:public LineFollow{
 		void motorsWrite(int speedL, int speedR);
 		void motorsWritePct(int speedLpct, int speedRpct);//write motor values in percentage
 		void motorsStop();		
+		void correctDateHour();
 	private:
 		float motorAdjustment;//-1.0 ~ 1.0, whether left is lowered or right is lowered
 		
@@ -139,14 +164,20 @@ class RobotMotorBoard:public LineFollow{
 		int _IRread(uint8_t num);
 		void _readIR();
 		void _readTrim();
+		void _readSensors();
+	    void _collectSensors();
+		/*
 		void _readTH();
 		void _readGPSTimeDate();
 		void _readGPSCoord();
 		void _readCO2();
 		void _readSoundLevel();
-		
+		*/		
 		void _refreshMotorAdjustment();
-		
+     	void _readCmd();
+     	void _sendCmdData();
+		void _sendCountfileData(uint32_t filesize,uint32_t lastpos);
+
 		Multiplexer IRs;
 		uint8_t mode;
 		uint8_t isPaused;
