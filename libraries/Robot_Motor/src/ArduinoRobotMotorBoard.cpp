@@ -525,6 +525,7 @@ void RobotMotorBoard::_collectSensors(){
 	// CO2 density
 	gasSensor.read();
     awbbSensorDataBuf.CO2Density = gasSensor.getPPM();
+  
 }
 
 void RobotMotorBoard::_readSensors(){
@@ -549,7 +550,5 @@ void RobotMotorBoard::_readSensors(){
 	messageOut.writeBuffer(sizeof(awbbSensorDataBuf),(uint8_t *)&awbbSensorDataBuf);
 	messageOut.sendData();	
 }
-
-
 
 RobotMotorBoard RobotMotor=RobotMotorBoard();

@@ -58,14 +58,14 @@ int imax = 0;
 // Table of angle
 int disttab[4];
 // Degres for each position
-unsigned char deg[4] PROGMEM = {
+unsigned char deg[4]  = {
   170,
   135,
   45,
   10
   };
 // angle to turn by indice
-int turn[4] PROGMEM = {
+int turn[4]  = {
   -90,
   -45,
   45,
@@ -88,17 +88,13 @@ void setup() {
   // initialize the Robot, SD card, and display
   Serial.begin(19200);
   Robot.begin();
- // Serial.println("1");
   Robot.beginTFT();
   // Attach the servo
-  //Serial.println("2");
   servo.attach(servoPin);
-  //Serial.println("3");
   // Put in in front
   servo.write(90);
   // some delay
   delay(150);
-  //Serial.println("4");
   
   // Replace Robot.beginSD() to avoid to call 'melody'
   // SD reader init on pin CARD_CS (D8) of the 32u4
@@ -109,9 +105,7 @@ void setup() {
   MOVE = true;  
   // GPS data struct initilization
   memset ((void*)&Robot.awbbSensorDataBuf,0,sizeof(Robot.awbbSensorDataBuf));
-
   mode = MODE_ALIVE;
-  Serial.println("5");
 
 }// End Setup
 
@@ -120,8 +114,7 @@ void CollectAndStoreData() {
     //----------------------------------------------------------
     // Collect all the data from sensors
     //----------------------------------------------------------
-    Serial.println(">BC");
-    // - light
+    // - light : light is sent to the motor to process rating
     int vLight = Robot.analogRead(lightSensorPin);
 
     Robot.readSensorsData(vLight,Robot.awbbSensorDataBuf);
@@ -129,11 +122,9 @@ void CollectAndStoreData() {
     //----------------------------------------------------------
     // Save the collected data and the environment rating
     //----------------------------------------------------------
-  //  Serial.println("12");
 
     // Save the data into µSD
     if (Robot.file.open(LOG_FILENAME, O_RDWR | O_CREAT | O_APPEND)) {
-      //Serial.println("Writing...");
       // Write a line
       //« YYYY-MM-DDTHH :MM :SS.mmm ;FIX;SAT;LAT ;LONG ;ALT ;LUMIERE ;TEMP ;HYGRO ;CO2 ;MICRO ;NOTE »
       Robot.file.print(F("20"));
@@ -247,7 +238,7 @@ void CollectAndStoreData() {
     Robot.println();
     Robot.println(Robot.cmd);
     Robot.println();
-    Serial.println("<BC");
+//    Serial.println("<BC");
 
 }
 
@@ -319,7 +310,7 @@ void loop() {
     turnwithoutcompass(imax); 
     // Go to front for the servo
     servo.write(90);
-    delay(1000); 
+//    delay(1000); 
     flag = 1;
     countdist = 0;
     mode = MODE_ALIVE;
@@ -397,7 +388,6 @@ Serial.println("E");
   if ( countdist*100 % MAX_RUNNING_TIME == 0 ) {
 	MOVE = false;
   }
-            
 } //End loop()
 
 // Try to get best distance measure getting 3 dist and take the best.
