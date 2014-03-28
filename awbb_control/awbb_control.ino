@@ -10,7 +10,7 @@ gps data, temperature, hydrometrie, co2, sound, ligth
  * Servo on TKD4 (the only pwm)
  * LDR (with pull-up resistor) on TK4/M4
  
- Modified code of robot_motor to support : CO2, gps, temperature and hudrometrie captor, sound level
+ Modified code of robot_motor to support : CO2, gps, temperature and hudrometrie captor, sound level, bluetooth module
   
  created 11 February 2014
  by F. Brodziak & P. Locquet
@@ -30,10 +30,10 @@ gps data, temperature, hydrometrie, co2, sound, ligth
 #define MAX_RUNNING_TIME 20000
 
 // PIN
-uint8_t sensorPin    PROGMEM  = TK2;  // M2 : pin of the range sensor
-uint8_t servoPin     PROGMEM  = TKD4;  // pin of the servo
+uint8_t sensorPin      = TK2;  // M2 : pin of the range sensor
+uint8_t servoPin       = TKD4;  // pin of the servo
 // Note the servo is front of the robot when angle is 90 Degres.
-uint8_t lightSensorPin PROGMEM = TK4;    // M4 : pin of the LDR
+uint8_t lightSensorPin  = TK4;    // M4 : pin of the LDR
 
 // Servo object
 Servo servo;
@@ -81,6 +81,7 @@ byte mode ;
 #define MODE_MEASURE 4
 #define MODE_ONLYMEASURE 5
 
+// print step
 //#define DEBUGSTEP 1
 
 // Setup function
@@ -126,7 +127,7 @@ void CollectAndStoreData() {
     // Save the data into µSD
     if (Robot.file.open(LOG_FILENAME, O_RDWR | O_CREAT | O_APPEND)) {
       // Write a line
-      //« YYYY-MM-DDTHH :MM :SS.mmm ;FIX;SAT;LAT ;LONG ;ALT ;LUMIERE ;TEMP ;HYGRO ;CO2 ;MICRO ;NOTE »
+      //« YYYY-MM-DDTHH :MM :SS.mmm ;FIX;SAT;LAT ;LONG ;ALT ;LIGHT ;TEMP ;HYGRO ;CO2 ;MICRO ;NOTE »
       Robot.file.print(F("20"));
       Robot.file.print(Robot.awbbSensorDataBuf.year);
       Robot.file.print(F("-"));
@@ -255,7 +256,7 @@ void loop() {
   // Test of front distance
   if ( mode == MODE_ALIVE || mode == MODE_ONLYMEASURE) {
   while( ((distfront = get3Distance()) < 30) // If an obstacle is less than 30cm away 
-         || (MOVE == false)        // Or if we are connected to Serial
+         || (MOVE == false)        
        )
   {  
 #ifdef DEBUGSTEP
@@ -310,7 +311,6 @@ void loop() {
     turnwithoutcompass(imax); 
     // Go to front for the servo
     servo.write(90);
-//    delay(1000); 
     flag = 1;
     countdist = 0;
     mode = MODE_ALIVE;
@@ -370,7 +370,7 @@ Serial.println("E");
             Robot.processFileSize();
             break;
           case COMMAND_EXT_INIT :
-            Robot.storeTimestamp(Robot.cmd);
+            // Do nothing this command is proceed by motor;
             break;
           case COMMAND_EXT_REINITFILE :
             Robot.reInitFile();

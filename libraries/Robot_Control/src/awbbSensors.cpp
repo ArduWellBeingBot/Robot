@@ -13,22 +13,19 @@
  */
 #include "ArduinoRobot.h"
 
-#include "MemoryFree.h"
-
-// Read All sensors data
+// Read All sensors data fill the record
 void RobotControl::readSensorsData(int ligth, awbbSensorData &awbbSensorDataBuf){
   messageOut.writeByte(COMMAND_READ_SENSORS);
   messageOut.writeInt(ligth);
   messageOut.sendData();
   delay(10);
   while(!messageIn.receiveData());
-    uint8_t mess = messageIn.readByte();
-    if(mess==COMMAND_READ_SENSORS_RE){
-	  messageIn.readBuffer(sizeof(awbbSensorDataBuf),(uint8_t *)&awbbSensorDataBuf);
-	  }
+  uint8_t mess = messageIn.readByte();
+  if(mess==COMMAND_READ_SENSORS_RE){
+	messageIn.readBuffer(sizeof(awbbSensorDataBuf),(uint8_t *)&awbbSensorDataBuf);
+  }
 }
 
-// perhaps temporary in this module
 // Read cmd
 byte RobotControl::readCmd(char *cmd){
   char c;
@@ -52,11 +49,12 @@ byte RobotControl::readCmd(char *cmd){
   return len; 
 }
 
-// send cmd
+// send cmd data
 void RobotControl::sendCmdData() {
   initDataSDReading(true);
   bool cont = true;
   char c;
+  // Send the file from sd : return -1 when EOF
   while ( cont ) {
 	messageOut.writeByte(COMMAND_SEND_CMD_DATA);
 	c = 1;
@@ -77,6 +75,7 @@ void RobotControl::sendCmdData() {
 	  cont = true;
 	}
   }
+  // This is EOF Write it
   messageOut.resetData();
   messageOut.writeByte(COMMAND_SEND_CMD_DATA);
   messageOut.writeByte('E');
@@ -90,20 +89,22 @@ void RobotControl::sendCmdData() {
   uint8_t len;
   uint8_t mess = messageIn.readByte();
   if(mess==COMMAND_SEND_CMD_DATA_RE){
+	// Close the file and register the last pos
 	afterDataSDReading();
   }
-  Serial.println("Fin");
 }
 
-// send cmd
+// process count command
 void RobotControl::processFileSize() {
   uint32_t filesize = 0;
+  // Read SDLastPos
   initDataSDReading(false);
+  // Proceed filesize
   if (file.open(LOG_FILENAME, O_RDWR)) {
 	filesize = file.fileSize();
 	file.close();
   }
-
+  // Send it to motor
   messageOut.writeByte(COMMAND_COUNTFILE_CMD_DATA);
   messageOut.writeInt32(filesize);
   messageOut.writeInt32(SDLastPos);
@@ -115,11 +116,7 @@ void RobotControl::processFileSize() {
   }
 }
 
-
-// Store time stamp
-void RobotControl::storeTimestamp( char *cmd) {
-}
-
+// File to store the last posread
 #define LAST_POS_FILE "LastPos.sd"
 
 // To call before to read the SD card
@@ -149,11 +146,9 @@ void RobotControl::initDataSDReading(bool openfile) {
   }
 }
 
-  
-
 // Read onebyte from last pos
 
-// If 'initDataSDReading' has not been called, read from beginig of file
+// If 'initDataSDReading' has not been called, read from begining of file
 char RobotControl::SDReadByteSinceFromPos() {
   if (!file.isOpen()) {
   file.open (LOG_FILENAME, O_RDWR);

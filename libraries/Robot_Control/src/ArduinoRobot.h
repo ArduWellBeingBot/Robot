@@ -340,8 +340,6 @@ public Arduino_LCD
 		void sendCmdData(void);
 		// Count file size
 		void processFileSize(void);
-		// Store the timestamp
-		void storeTimestamp(char* text);
 		SdCard card;
 		Fat16 file;
 		// Contains all GPS information (get from motor_board)

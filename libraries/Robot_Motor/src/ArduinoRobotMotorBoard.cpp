@@ -16,7 +16,10 @@
 #include "EnvRating.h"
 // To manage time
 #include "Time.h"
+
+// Set to debug to serial
 //#define DEBUG_MODE 1
+
 /*
  Circuit:
  * Arduino Robot : motor board
@@ -51,7 +54,7 @@ P6 = GND
 #define DHTPIN TK4 
 // Type of sensor
 #define DHTTYPE DHT22   // DHT 22  (AM2302)
-// Object
+// Object to thermo + hygro
 DHT dht(DHTPIN, DHTTYPE);
 
 // Object for CO2Sensor on Analog pin 
@@ -71,12 +74,12 @@ Adafruit_GPS GPS(&gpsSerial,&awbbSensorDataBuf);
 // Software serial for bluetooth
 SoftwareSerial btSerial(MISO,SCK);
 
-
-
+// Contructor
 RobotMotorBoard::RobotMotorBoard(){
 	// Do nothing
 }
 
+// Initialize Gps
 void RobotMotorBoard::beginGps(){
     // 9600 NMEA is the default baud rate for Adafruit MTK GPS's- some use 4800
     GPS.begin(9600);
@@ -84,28 +87,42 @@ void RobotMotorBoard::beginGps(){
 	GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
 	// Refresh each 1 seconds
     GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);
-    delay(1000);
+	// Wait a litle
+    delay(100);
+	// Close the gps
     gpsSerial.end();
 }
 
 
+// Begin the robot
 void RobotMotorBoard::begin(){
-	//initialze communication between boards
+	//initialize communication between boards
 	Serial1.begin(9600);
 	messageIn.begin(&Serial1);
 	messageOut.begin(&Serial1);
+	// Initialize bluetooth module
 	btSerial.begin(19200);
+	// Initialize thermo + hygro
 	dht.begin();
+	
 	isPaused=false;
 }
 
 // Memory of last timer
 uint32_t timer = millis();
+
+// Process gps :
+// Cutoff the bluetooth serial
+// Wait a command from gps
+// Register it in common record
 void RobotMotorBoard::processGps(){
   bool notRec = true;
+  // Cutoff bluetooth
   btSerial.end();
+  // Begin gps
   gpsSerial.begin(9600);
   char c;
+  // While we have not a record
   while (notRec ) {
 	// reading a char from gps serial line
 	c = GPS.read();
@@ -118,26 +135,32 @@ void RobotMotorBoard::processGps(){
 	  // a tricky thing here is if we print the NMEA sentence, or data
 	  // we end up not listening and catching other sentences! 
 	  // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
-	  if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
-		return;  // we can fail to parse a sentence in which case we should just wait for another
-	  notRec = false;
+	  if (GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
+		notRec = false; // we can fail to parse a sentence in which case we should just wait for another
+	  
 	}
   }
+  // Correct the gps date and hour with the time of init command
   correctDateHour();
+  // End of gps
   gpsSerial.end();
+  // Yes, we can receive command
   btSerial.begin(19200);
 }
 
 // Correct the gps date and time
 void RobotMotorBoard::correctDateHour() {
     bool correct = false;
-	// Correct hour if = 0 : robot not working at 0:0:0 
+	// Correct hour if = 0:0:0 : robot not working at 0:0:0 (perhaps yes but we asume) 
 	if (awbbSensorDataBuf.hour == 0 && awbbSensorDataBuf.minute == 0 && awbbSensorDataBuf.seconds == 0 ) {
+	  // Time status is ok
 	  if (  timeStatus() == timeSet ) {
+		// Complete all hour information
 		awbbSensorDataBuf.hour = hour();
 		awbbSensorDataBuf.minute = minute();
 		awbbSensorDataBuf.seconds = second();
 	  }
+	  // We do a correction
 	  correct = true;
 	}
 	// Correct date if year no good
@@ -149,7 +172,7 @@ void RobotMotorBoard::correctDateHour() {
 	  }
 	  correct = true;
 	}
-	// This is a good time and date, register it for future in the time module.
+	// This is a good gps time and date, register it for future in the time module.
 	if ( !correct ) {
 	  setTime(awbbSensorDataBuf.hour,
 			  awbbSensorDataBuf.minute,
@@ -166,6 +189,7 @@ char cpt=0;
 char cmd[20];
 bool cmdok = false;
 
+// Process bt command
 void RobotMotorBoard::process(){
 	if(isPaused)return;//skip process if the mode is paused
 	if(mode==MODE_SIMPLE){
@@ -212,12 +236,14 @@ void RobotMotorBoard::process(){
 			 Serial.println(year());
 		 }
 	   } else {
+		 // REgister the received caractere in command buffer
 		 if ( cpt +1 < sizeof(cmd)) {
 		   cmd[cpt++] = c;
 		 }
 	   }
 	 }
 }
+
 void RobotMotorBoard::pauseMode(bool onOff){
 	if(onOff){
 		isPaused=true;
@@ -227,6 +253,8 @@ void RobotMotorBoard::pauseMode(bool onOff){
 	stopCurrentActions();
 
 }
+
+// Parse inter Robot control - motor command
 void RobotMotorBoard::parseCommand(){
 	uint8_t modeName;
 	uint8_t codename;
@@ -466,6 +494,7 @@ void RobotMotorBoard::reportActionDone(){
 	messageOut.sendData();
 }
 
+// read a cmd from bluetooth
 void RobotMotorBoard::_readCmd(){
   byte status;
   uint8_t i;
@@ -481,6 +510,7 @@ void RobotMotorBoard::_readCmd(){
   cmdok = false;
 }
 
+// receive data from sdcard
 void RobotMotorBoard::_sendCmdData(){
   uint8_t i;
   Serial.print("_sendCmdData ");  
@@ -503,6 +533,7 @@ void RobotMotorBoard::_sendCmdData(){
   messageOut.sendData();
 }
 
+// process count cmd
 void RobotMotorBoard::_sendCountfileData(uint32_t filesize,uint32_t lastpos){
   Serial.print("_sendCountfileData ");  
   btSerial.write('$');
@@ -516,6 +547,7 @@ void RobotMotorBoard::_sendCountfileData(uint32_t filesize,uint32_t lastpos){
   messageOut.sendData();
 }
 
+// collect local sensor
 void RobotMotorBoard::_collectSensors(){
 	// Temperature/Hygro
 	awbbSensorDataBuf.hygro = dht.readHumidity();
@@ -528,6 +560,7 @@ void RobotMotorBoard::_collectSensors(){
   
 }
 
+// Readsensor and send the record to control
 void RobotMotorBoard::_readSensors(){
     Serial.println("_readSensors");
 	// Read gps information awbbSensorDataBuf is completed with
