@@ -42,8 +42,8 @@
 #define L_MINMIN   250.0
 #define L_WEIGHT   1
 // Sound treshold
-#define S_MAXMAX   3.0
-#define S_MAX      2.0
+#define S_MAXMAX   3.8
+#define S_MAX      3.0
 #define S_WEIGHT   2
 
 class EnvRating {

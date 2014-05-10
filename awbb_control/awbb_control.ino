@@ -81,9 +81,22 @@ byte mode ;
 #define MODE_MEASURE 4
 #define MODE_ONLYMEASURE 5
 
+  uint8_t pinleft = TK3;
+  uint8_t pinrigth = TK1;
+
+
+int cptleft;
+int cptrigth;
+int mill;
+int lastmill;
+uint8_t moteurleft = 255;
+uint8_t moteurrigth = 255;
+
+
 // print step
 //#define DEBUGSTEP 1
-
+//#define DEBUGNOMOTOR 1
+//#define DEBUGNOSERVO 1
 // Setup function
 void setup() {
   // initialize the Robot, SD card, and display
@@ -107,7 +120,6 @@ void setup() {
   // GPS data struct initilization
   memset ((void*)&Robot.awbbSensorDataBuf,0,sizeof(Robot.awbbSensorDataBuf));
   mode = MODE_ALIVE;
-
 }// End Setup
 
 // Collect and Store data
@@ -185,7 +197,7 @@ void CollectAndStoreData() {
 //    Robot.setTextSize(1);
     Robot.setCursor(0,0);
     Robot.setTextColor(ILI9163C_BLACK,ILI9163C_RED);
-    Robot.println(F("ArduWellBeingBot v2.0"));
+    Robot.println(F("ArduWellBeingBot v2.1"));
 
     Robot.setTextColor(ILI9163C_WHITE,ILI9163C_BLACK);
 #ifdef SCREEN_PRINT_DATE_TIME
@@ -238,11 +250,36 @@ void CollectAndStoreData() {
     Robot.println(Robot.awbbSensorDataBuf.rating);
     Robot.println();
     Robot.println(Robot.cmd);
-    Robot.println();
+#ifdef SCREEN_PRINT_MOTOR
+    Robot.print(cptleft);
+    Robot.print(" ");
+    Robot.println(cptrigth);
+    Robot.print(moteurleft);
+    Robot.print(" ");
+    Robot.println(moteurrigth);
+#endif
 //    Serial.println("<BC");
 
 }
 
+// Turn with delay instead of using compass
+void readandinterpir(int &cptleft, int &cptrigth, int &mill) {
+   
+  bool valleft = 0;
+  bool valrigth = 0;
+  static bool lastvalleft = 0;
+  static bool lastvalrigth = 0;
+  valleft = Robot.digitalRead(pinleft);
+  valrigth = Robot.digitalRead(pinrigth);
+  if ( valleft == true && lastvalleft == false ) {
+       cptleft++;
+  }
+  if ( valrigth == true && lastvalrigth == false ) {
+       cptrigth++;
+  }
+  lastvalleft = valleft;
+  lastvalrigth = valrigth;
+}
 
 // Main loop
 void loop() {
@@ -253,7 +290,8 @@ void loop() {
 #ifdef DEBUGSTEP
   Serial.println("A");
 #endif
-  // Test of front distance
+
+// Test of front distance
   if ( mode == MODE_ALIVE || mode == MODE_ONLYMEASURE) {
   while( ((distfront = get3Distance()) < 30) // If an obstacle is less than 30cm away 
          || (MOVE == false)        
@@ -266,11 +304,13 @@ void loop() {
       mode = MODE_MEASURE;
     }
     // stop the motors
+#ifndef DEBUGNOMOTOR
     Robot.motorsStop();
+#endif
     
     // Collect and Store Data
     CollectAndStoreData();
-
+    
     //----------------------------------------------------------
     // Find the best direction
     //----------------------------------------------------------
@@ -279,6 +319,7 @@ void loop() {
     imax=-1;
     // Robot.text(distfront,100,0);
     // Try to found longest distance
+#ifndef DEBUGNOSERVO
     for (i=0; i< 4 ; i++ ) {
       // Give deg to servo
       servo.write(deg[i]);
@@ -294,12 +335,13 @@ void loop() {
       // Memory of all distance ( not used for the moment)
       disttab[i] = dist;
       // 
-      Robot.text(dist,5,i*160/4);
+ //     Robot.text(dist,5,i*160/4);
 #ifdef DEBUGSTEP
         Serial.println("C");
 #endif
 
     }
+#endif
 #ifdef DEBUGSTEP
   Serial.println("D");
 #endif
@@ -307,8 +349,10 @@ void loop() {
   // Turn in the best direction
   //----------------------------------------------------------
 
+#ifndef DEBUGNOMOTOR
     // Turn to the longest distance
     turnwithoutcompass(imax); 
+#endif
     // Go to front for the servo
     servo.write(90);
     flag = 1;
@@ -329,16 +373,33 @@ Serial.println("E");
   // if we just turn, start progresively
   if (flag == 1 && mode == MODE_ALIVE) {
 	for(int i = 5 ; i< 10 ; i+=2 ) {
+#ifndef DEBUGNOMOTOR
 	  Robot.motorsWrite(i*20, i*20); 
+#endif
 	  delay(200);
 	}
 	flag = 0;
-	Robot.motorsWrite(255, 255);
+#ifndef DEBUGNOMOTOR
+	Robot.motorsWrite(moteurleft,moteurrigth);
+#endif
   }    
 #ifdef DEBUGSTEP
     Serial.println("F");
 #endif
-
+/*
+  lastmill = mill;
+  readandinterpir(cptleft,cptrigth, mill);
+  
+  if ( abs(cptleft - cptrigth) > 3 ) {
+     if (cptleft > cptrigth ) {
+       moteurleft--;
+       moteurrigth = 255;
+     } else {
+       moteurleft=255;
+       moteurrigth--;
+     }
+  }
+  */
   // Run
   // Delay of 100
   delay(100);
@@ -364,6 +425,7 @@ Serial.println("E");
             break;
           case COMMAND_EXT_GETDATA :
             Robot.println("GET DATA");
+	    Robot.motorsWrite(0, 0);
             Robot.sendCmdData();
             break;
           case COMMAND_EXT_COUNTFILE :
@@ -441,3 +503,5 @@ void turnwithoutcompass(int ind) {
   delay(val);
   Robot.motorsWrite(0,0);//right
 }
+
+

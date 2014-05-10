@@ -16,6 +16,9 @@
 #include "EnvRating.h"
 // To manage time
 #include "Time.h"
+// ligth
+#include "wire.h"
+#include "ligthSensor.h"
 
 // Set to debug to serial
 //#define DEBUG_MODE 1
@@ -198,7 +201,6 @@ void RobotMotorBoard::process(){
 
 	}else if(mode==MODE_LINE_FOLLOW){
 		//do line following stuff here.
-		LineFollow::runLineFollow();
 	}else if(mode==MODE_ADJUST_MOTOR){
 		Serial.println('a');
 		//motorAdjustment=analogRead(POT);
@@ -310,14 +312,6 @@ void RobotMotorBoard::parseCommand(){
 			case COMMAND_PAUSE_MODE:
 				pauseMode(messageIn.readByte());//onOff state
 				break;
-			case COMMAND_LINE_FOLLOW_CONFIG:
-				LineFollow::config(
-					messageIn.readByte(),	//KP
-					messageIn.readByte(),	//KD
-					messageIn.readByte(),	//robotSpeed
-					messageIn.readByte()	//IntegrationTime
-				);
-				break;
 			case COMMAND_READ_CMD:
 				_readCmd();
 				break;
@@ -366,9 +360,6 @@ uint8_t RobotMotorBoard::codenameToAPin(uint8_t codename){
 }
 
 void RobotMotorBoard::setMode(uint8_t mode){
-	if(mode==MODE_LINE_FOLLOW){
-		LineFollow::calibIRs();
-	}
 	/*if(mode==SET_MOTOR_ADJUSTMENT){
 			save_motor_adjustment_to_EEPROM();
 		}
@@ -557,6 +548,7 @@ void RobotMotorBoard::_collectSensors(){
 	// CO2 density
 	gasSensor.read();
     awbbSensorDataBuf.CO2Density = gasSensor.getPPM();
+	awbbSensorDataBuf.vLight = readLigthSensor();
   
 }
 
@@ -568,7 +560,8 @@ void RobotMotorBoard::_readSensors(){
 	// Collect all motor sensor value
 	_collectSensors();
 	// Complete with ligth on control board
-	awbbSensorDataBuf.vLight = messageIn.readInt();
+	//awbbSensorDataBuf.vLight = 
+	messageIn.readInt();
 	EnvRating envRating;
 	// Calcul rating
     envRating.addLight(awbbSensorDataBuf.vLight);
