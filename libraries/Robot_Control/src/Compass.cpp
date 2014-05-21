@@ -25,6 +25,27 @@ float Compass::getReading(){
   return headingInt;
 }
 
+void Compass::enterCalibrationMode(){
+  Wire.beginTransmission(HMC6352SlaveAddress);
+  Wire.write(HMC6352EnterCalibrationAddress);
+  _endTransmission();
+
+  //time delays required by HMC6352 upon receipt of the command
+  //Enter calibration mode : 0.01 ms (according to datasheet)
+  delay(1);
+}
+
+void Compass::exitCalibrationMode(){
+  Wire.beginTransmission(HMC6352SlaveAddress);
+  Wire.write(HMC6352ExitCalibrationAddress);
+  _endTransmission();
+
+  //time delays required by HMC6352 upon receipt of the command
+  //Exit calibration : 14ms (according to datasheet)
+  delay(14);
+}
+
+
 void Compass::_beginTransmission(){
   Wire.beginTransmission(HMC6352SlaveAddress);
   Wire.write(HMC6352ReadAddress);
